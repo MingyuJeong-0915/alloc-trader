@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALLOC — 자산배분 투자 트래커</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0f;--surface:#111118;--border:#1e1e2e;
+  --gold:#d4a843;--stock:#50e3a4;--bond:#4a9eff;--cash:#8b8ba0;
+  --text:#e8e8f0;--muted:#5a5a70;--danger:#e84393;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(212,168,67,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(212,168,67,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px;position:relative;z-index:1}
+header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:32px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.logo{font-family:'Space Mono',monospace;font-size:24px;font-weight:700;color:var(--gold)}
+.logo span{color:var(--text)}
+.header-right{text-align:right;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);line-height:1.7}
+.live{display:inline-block;width:6px;height:6px;background:var(--stock);border-radius:50%;margin-right:5px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.tabs{display:flex;gap:8px;margin-bottom:24px}
+.tab{font-family:'Space Mono',monospace;font-size:11px;padding:6px 16px;border-radius:20px;border:1px solid var(--border);cursor:pointer;color:var(--muted);background:transparent;transition:all .15s}
+.tab.on{border-color:var(--gold);color:var(--gold);background:rgba(212,168,67,.08)}
+
+.page{display:none}
+.page.on{display:block}
+
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.kpi.gold::before{background:var(--gold)}
+.kpi.stock::before{background:var(--stock)}
+.kpi.bond::before{background:var(--bond)}
+.kpi.cash::before{background:var(--cash)}
+.kpi.danger::before{background:var(--danger)}
+.kpi-label{font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.kpi-val{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;margin-bottom:2px}
+.kpi-sub{font-size:11px;color:var(--muted)}
+
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;margin-bottom:16px}
+.panel-title{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px}
+
+.alloc-bar{height:8px;border-radius:4px;overflow:hidden;display:flex;gap:2px;margin:10px 0 10px}
+.alloc-seg{border-radius:2px;transition:flex .8s cubic-bezier(.4,0,.2,1)}
+.legend-row{display:flex;gap:16px;flex-wrap:wrap}
+.leg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.leg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+.chart-wrap{position:relative;width:100%;height:220px;margin-bottom:4px}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* Signal bars */
+.sig-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sig-name{font-size:11px;color:var(--muted);width:110px;flex-shrink:0}
+.sig-bar-bg{flex:1;height:4px;background:var(--border);border-radius:2px;position:relative}
+.sig-fill{height:100%;border-radius:2px;position:absolute}
+.sig-val{font-size:11px;font-family:'Space Mono',monospace;width:80px;text-align:right;flex-shrink:0}
+
+/* Rebalance table */
+.rb-table{width:100%;border-collapse:collapse;font-size:12px}
+.rb-table th{color:var(--muted);text-align:left;padding:6px 0;border-bottom:1px solid var(--border);font-weight:400;font-size:10px;text-transform:uppercase;letter-spacing:1px;font-family:'Space Mono',monospace}
+.rb-table td{padding:10px 0;border-bottom:1px solid var(--border)}
+.shares-input{width:72px;text-align:right;font-family:'Space Mono',monospace;font-size:12px;padding:4px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
+
+.btn-primary{width:100%;margin-top:14px;padding:12px;border-radius:8px;border:1px solid var(--gold);background:transparent;color:var(--gold);font-family:'Space Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;letter-spacing:1px}
+.btn-primary:hover{background:var(--gold);color:#000}
+
+/* Journal */
+.trade-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px}
+.trade-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.trade-row{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:3px 0}
+.empty{text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;line-height:1.8}
+
+/* Responsive */
+@media(max-width:600px){
+  .kpi-row{grid-template-columns:1fr 1fr}
+  .grid2{grid-template-columns:1fr}
+  .kpi-val{font-size:16px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">ALLOC<span>.US</span></div>
+    <div class="header-right">
+      <div><span class="live"></span>자동 업데이트 중</div>
+      <div id="updatedDate">로딩 중...</div>
+      <div>매주 금요일 자동 갱신</div>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab on" onclick="go('overview',this)">포트폴리오</button>
+    <button class="tab" onclick="go('signal',this)">신호 현황</button>
+    <button class="tab" onclick="go('rebal',this)">리밸런싱</button>
+    <button class="tab" onclick="go('journal',this)">거래 내역</button>
+    <button class="tab" onclick="go('bench',this)">벤치마크</button>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="page on" id="page-overview">
+    <div class="kpi-row">
+      <div class="kpi gold"><div class="kpi-label">평가액</div><div class="kpi-val" id="kv-total">—</div><div class="kpi-sub" id="kv-start">시작 $100,000</div></div>
+      <div class="kpi stock"><div class="kpi-label">총 손익</div><div class="kpi-val" id="kv-pnl">—</div><div class="kpi-sub" id="kv-pct">—</div></div>
+      <div class="kpi bond"><div class="kpi-label">SPY 대비</div><div class="kpi-val" id="kv-vs">—</div><div class="kpi-sub" id="kv-vs-sub">—</div></div>
+      <div class="kpi cash"><div class="kpi-label">리밸런싱</div><div class="kpi-val" id="kv-trades">0회</div><div class="kpi-sub">누적 거래</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">수익률 추이</div>
+      <div class="chart-wrap"><canvas id="perfChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">현재 보유 비중</div>
+      <div class="alloc-bar" id="allocBar"></div>
+      <div class="legend-row">
+        <div class="leg"><div class="leg-dot" style="background:var(--gold)"></div>GLD <span id="leg-gld">—</span></div>
+        <div class="leg"><div class="leg-dot" style="background:var(--stock)"></div>SPY <span id="leg-spy">—</span></div>
+        <div class="leg"><div class="leg-dot" style="background:var(--bond)"></div>TLT <span id="leg-tlt">—</span></div>
+        <div class="leg"><div class="leg-dot" style="background:var(--cash)"></div>SHY <span id="leg-shy">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIGNAL -->
+  <div class="page" id="page-signal">
+    <div class="panel">
+      <div class="panel-title">신호 강도 — 현재</div>
+      <div class="sig-row"><div class="sig-name">실질금리 방향</div><div class="sig-bar-bg"><div class="sig-fill" id="sf-rr" style="background:var(--gold)"></div></div><div class="sig-val" id="sv-rr">—</div></div>
+      <div class="sig-row"><div class="sig-name">크레딧 스프레드</div><div class="sig-bar-bg"><div class="sig-fill" id="sf-cr" style="background:var(--bond)"></div></div><div class="sig-val" id="sv-cr">—</div></div>
+      <div class="sig-row"><div class="sig-name">달러 강도 (DXY)</div><div class="sig-bar-bg"><div class="sig-fill" id="sf-dx" style="background:var(--stock)"></div></div><div class="sig-val" id="sv-dx">—</div></div>
+      <div class="sig-row"><div class="sig-name">시장 변동성 VIX</div><div class="sig-bar-bg"><div class="sig-fill" id="sf-vx" style="background:var(--danger)"></div></div><div class="sig-val" id="sv-vx">—</div></div>
+    </div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-title">이번 주 추천 비중</div>
+        <div id="weightDetail" style="font-size:13px;line-height:2.2"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">현재가</div>
+        <table style="width:100%;font-size:12px;border-collapse:collapse">
+          <tr><td style="color:var(--gold);padding:5px 0;font-family:'Space Mono',monospace">GLD</td><td style="text-align:right;font-family:'Space Mono',monospace" id="price-gld">—</td></tr>
+          <tr><td style="color:var(--stock);padding:5px 0;font-family:'Space Mono',monospace">SPY</td><td style="text-align:right;font-family:'Space Mono',monospace" id="price-spy">—</td></tr>
+          <tr><td style="color:var(--bond);padding:5px 0;font-family:'Space Mono',monospace">TLT</td><td style="text-align:right;font-family:'Space Mono',monospace" id="price-tlt">—</td></tr>
+          <tr><td style="color:var(--cash);padding:5px 0;font-family:'Space Mono',monospace">SHY</td><td style="text-align:right;font-family:'Space Mono',monospace" id="price-shy">—</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">비중 변화 (최근 26주)</div>
+      <div class="chart-wrap"><canvas id="weightChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- REBALANCE -->
+  <div class="page" id="page-rebal">
+    <div class="panel">
+      <div class="panel-title">이번 주 리밸런싱 계산기</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <label style="font-size:12px;color:var(--muted);white-space:nowrap">투자금액 ($)</label>
+        <input type="number" id="investAmt" value="100000" style="flex:1;font-family:'Space Mono',monospace;font-size:13px;padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text)" oninput="calcShares()">
+      </div>
+      <table class="rb-table">
+        <thead><tr><th>자산</th><th>추천비중</th><th>현재가</th><th>투자금액</th><th>주수</th></tr></thead>
+        <tbody id="rebalBody"></tbody>
+      </table>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px">
+        <span style="color:var(--muted)">예상 투자금</span>
+        <span id="totalInvest" style="font-family:'Space Mono',monospace;font-weight:700">—</span>
+      </div>
+      <button class="btn-primary" onclick="confirmRebal()">▶ 이 비중으로 투자 기록</button>
+    </div>
+  </div>
+
+  <!-- JOURNAL -->
+  <div class="page" id="page-journal">
+    <div id="journalWrap">
+      <div class="empty">아직 거래 기록이 없어요<br>리밸런싱 탭에서 첫 투자를 기록해보세요</div>
+    </div>
+  </div>
+
+  <!-- BENCHMARK -->
+  <div class="page" id="page-bench">
+    <div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="kpi gold"><div class="kpi-label">내 포트폴리오</div><div class="kpi-val" id="b-my">—</div><div class="kpi-sub">시작 이후</div></div>
+      <div class="kpi stock"><div class="kpi-label">SPY 단순 보유</div><div class="kpi-val" id="b-spy">—</div><div class="kpi-sub">같은 기간</div></div>
+      <div class="kpi bond"><div class="kpi-label">초과 수익</div><div class="kpi-val" id="b-ex">—</div><div class="kpi-sub">내 - SPY</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">성과 비교</div>
+      <div class="chart-wrap"><canvas id="benchChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">SPY 주간 수익률 (최근 52주)</div>
+      <div style="position:relative;width:100%;height:80px"><canvas id="spyWeekly"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const STORE = 'alloc_v3';
+const START = 100000;
+const ASSETS = ['GLD','SPY','TLT','SHY'];
+const COLORS = {SPY:'#50e3a4',GLD:'#d4a843',TLT:'#4a9eff',SHY:'#8b8ba0'};
+
+let D = null; // 서버 데이터
+let state = JSON.parse(localStorage.getItem(STORE)||'null') || {
+  cash: START, holdings:{SPY:0,GLD:0,TLT:0,SHY:0},
+  trades:[], history:[], spy_shares:0, spy_entry:0
+};
+
+// ─── 데이터 로드 ───
+async function loadData(){
+  try{
+    const r = await fetch('data.json?t='+Date.now());
+    D = await r.json();
+    document.getElementById('updatedDate').textContent = D.updated+' 기준';
+    calcShares();
+    renderSignal();
+    renderOverview();
+    renderBench();
+  }catch(e){
+    document.getElementById('updatedDate').textContent = '데이터 로드 실패';
+  }
+}
+
+// ─── 탭 ───
+function go(id,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('page-'+id).classList.add('on');
+}
+
+// ─── 포트폴리오 가치 ───
+function portVal(){
+  if(!D) return START;
+  let v = state.cash;
+  ASSETS.forEach(a=>{ v += state.holdings[a]*D.prices[a]; });
+  return v;
+}
+function spyVal(){
+  if(!D||!state.spy_shares) return 0;
+  return state.spy_shares * D.prices.SPY;
+}
+
+// ─── 개요 렌더 ───
+let perfChart=null;
+function renderOverview(){
+  if(!D) return;
+  const val=portVal(), pnl=val-START, pct=pnl/START*100;
+  const spyV=spyVal(), spyPct=spyV?(spyV-START)/START*100:null;
+  const vs=spyPct!==null?pct-spyPct:null;
+
+  el('kv-total').textContent='$'+Math.round(val).toLocaleString();
+  el('kv-pnl').textContent=(pnl>=0?'+':'')+Math.round(pnl).toLocaleString()+' USD';
+  el('kv-pnl').style.color=pnl>=0?'#50e3a4':'#e84393';
+  el('kv-pct').textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%';
+  el('kv-trades').textContent=state.trades.length+'회';
+
+  if(vs!==null){
+    el('kv-vs').textContent=(vs>=0?'+':'')+vs.toFixed(2)+'%p';
+    el('kv-vs').style.color=vs>=0?'#50e3a4':'#e84393';
+    el('kv-vs-sub').textContent='SPY '+spyPct.toFixed(1)+'% / 내 '+pct.toFixed(1)+'%';
+  }
+
+  // Alloc bar
+  const bar=el('allocBar'); bar.innerHTML='';
+  ASSETS.forEach(a=>{
+    const w=val>0?state.holdings[a]*D.prices[a]/val:0.25;
+    const seg=document.createElement('div');
+    seg.className='alloc-seg';
+    seg.style.cssText=`flex:${Math.max(w,0.01)};background:${COLORS[a]}`;
+    bar.appendChild(seg);
+    const le=el('leg-'+a.toLowerCase());
+    if(le) le.textContent=(w*100).toFixed(1)+'%';
+  });
+
+  // 차트
+  const hist = state.history.length>1 ? state.history : D.portfolio_history.slice(-26);
+  const spyHist = state.history.length>1
+    ? state.history.map(h=>({date:h.date,value:h.spy>0?(h.spy/START-1)*100:null}))
+    : D.spy_history.slice(-26);
+
+  if(perfChart){perfChart.destroy();}
+  perfChart = mkLineChart('perfChart',
+    hist.map(h=>h.date.slice(5)),
+    [{label:'포트폴리오',data:hist.map(h=>+(h.value||0).toFixed(2)),color:'#d4a843',dash:[]},
+     {label:'SPY',data:spyHist.map(h=>h.value!==null?+h.value.toFixed(2):null),color:'#50e3a4',dash:[4,3]}]
+  );
+}
+
+// ─── 신호 렌더 ───
+let weightChart=null;
+function renderSignal(){
+  if(!D) return;
+  const s=D.signals, w=D.weights;
+  setSig('rr',s.real_rate,'sf-rr','sv-rr');
+  setSig('cr',s.credit,'sf-cr','sv-cr');
+  setSig('dx',s.dxy,'sf-dx','sv-dx');
+  setSig('vx',s.vix,'sf-vx','sv-vx');
+
+  el('price-gld').textContent='$'+D.prices.GLD.toFixed(2);
+  el('price-spy').textContent='$'+D.prices.SPY.toFixed(2);
+  el('price-tlt').textContent='$'+D.prices.TLT.toFixed(2);
+  el('price-shy').textContent='$'+D.prices.SHY.toFixed(2);
+
+  el('weightDetail').innerHTML=[
+    {a:'GLD',c:'#d4a843'},{a:'SPY',c:'#50e3a4'},{a:'TLT',c:'#4a9eff'},{a:'SHY',c:'#8b8ba0'}
+  ].map(({a,c})=>`<div><span style="color:${c};font-family:'Space Mono',monospace;font-weight:700">${a}</span> <span style="color:#e8e8f0">${(w[a]*100).toFixed(1)}%</span></div>`).join('');
+
+  const wh = D.weight_history.slice(-26);
+  if(weightChart){weightChart.destroy();}
+  weightChart = new Chart(el('weightChart').getContext('2d'),{
+    type:'bar',
+    data:{labels:wh.map(d=>d.date.slice(5)),datasets:ASSETS.map(a=>({
+      label:a,data:wh.map(d=>+((d[a]||0)*100).toFixed(1)),
+      backgroundColor:COLORS[a],stack:'w',
+    }))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#5a5a70',font:{size:9}},grid:{color:'rgba(255,255,255,.04)'}},
+              y:{max:100,ticks:{color:'#5a5a70',font:{size:9},callback:v=>v+'%'},grid:{color:'rgba(255,255,255,.04)'}}}}
+  });
+}
+
+function setSig(id,val,barId,valId){
+  const pct=Math.min(100,Math.max(0,(val+1)/2*100));
+  const b=el(barId);
+  if(val>=0){b.style.left='50%';b.style.width=(pct-50)+'%';}
+  else{b.style.left=pct+'%';b.style.width=(50-pct)+'%';}
+  const label=val>0.15?'▲ 상승':'val<-0.15'?'▼ 하락':'─ 중립';
+  el(valId).textContent=val>0.15?'▲ 상승압력':val<-0.15?'▼ 하락압력':'─ 중립';
+  el(valId).style.color=val>0.15?'#50e3a4':val<-0.15?'#e84393':'#5a5a70';
+}
+
+// ─── 리밸런싱 ───
+function calcShares(){
+  if(!D) return;
+  const amt=parseFloat(el('investAmt').value)||0;
+  const tbody=el('rebalBody'); tbody.innerHTML='';
+  let total=0;
+  [{a:'GLD',c:'#d4a843'},{a:'SPY',c:'#50e3a4'},{a:'TLT',c:'#4a9eff'},{a:'SHY',c:'#8b8ba0'}].forEach(({a,c})=>{
+    const w=D.weights[a], p=D.prices[a];
+    const shares=Math.floor(amt*w/p);
+    const cost=shares*p;
+    total+=cost;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="color:${c};font-family:'Space Mono',monospace;font-weight:700">${a}</td>
+      <td style="color:#e8e8f0">${(w*100).toFixed(1)}%</td>
+      <td style="font-family:'Space Mono',monospace">$${p.toFixed(2)}</td>
+      <td style="font-family:'Space Mono',monospace">$${Math.round(amt*w).toLocaleString()}</td>
+      <td style="font-family:'Space Mono',monospace;font-weight:700;color:#e8e8f0">${shares}주</td>`;
+    tbody.appendChild(tr);
+  });
+  el('totalInvest').textContent='$'+Math.round(total).toLocaleString();
+}
+
+function confirmRebal(){
+  if(!D){alert('데이터 로딩 중입니다. 잠시 후 다시 시도해주세요.');return;}
+  const amt=parseFloat(el('investAmt').value)||0;
+  const newH={}, cost_map={};
+  let totalCost=0;
+  ASSETS.forEach(a=>{
+    const shares=Math.floor(amt*D.weights[a]/D.prices[a]);
+    newH[a]=shares; cost_map[a]=shares*D.prices[a]; totalCost+=cost_map[a];
+  });
+  state.holdings=newH;
+  state.cash=amt-totalCost;
+  if(!state.spy_shares){
+    state.spy_shares=Math.floor(amt/D.prices.SPY);
+    state.spy_entry=D.prices.SPY;
+  }
+  const curVal=portVal();
+  const spyV=state.spy_shares*D.prices.SPY;
+  const trade={
+    date:D.updated, weights:{...D.weights}, holdings:{...newH},
+    prices:{...D.prices}, cost:totalCost, val:curVal
+  };
+  state.trades.push(trade);
+  if(state.history.length===0){
+    state.history=[{date:D.updated,value:0,spy:0}];
+  } else {
+    state.history.push({date:D.updated,value:(curVal/START-1)*100,spy:(spyV/START-1)*100});
+  }
+  localStorage.setItem(STORE,JSON.stringify(state));
+  renderOverview(); renderJournal(); renderBench();
+  alert('✅ 투자 기록 완료!\n\n포트폴리오 탭에서 확인하세요.');
+}
+
+// ─── 거래 내역 ───
+function renderJournal(){
+  const wrap=el('journalWrap');
+  if(!state.trades.length){
+    wrap.innerHTML='<div class="empty">아직 거래 기록이 없어요<br>리밸런싱 탭에서 첫 투자를 기록해보세요</div>';
+    return;
+  }
+  wrap.innerHTML='';
+  [...state.trades].reverse().forEach(t=>{
+    const curVal=portVal();
+    const pnl=D?curVal-t.cost:0;
+    const card=document.createElement('div');
+    card.className='trade-card';
+    const rows=ASSETS.filter(a=>t.holdings[a]>0)
+      .map(a=>`<div class="trade-row"><span style="color:${COLORS[a]};font-family:'Space Mono',monospace">${a}</span><span>${t.holdings[a]}주 × $${t.prices[a].toFixed(2)}</span><span style="font-family:'Space Mono',monospace">$${Math.round(t.holdings[a]*t.prices[a]).toLocaleString()}</span></div>`).join('');
+    card.innerHTML=`<div class="trade-head">
+      <div><div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace">${t.date}</div><div style="font-size:13px;font-weight:500;margin-top:2px">리밸런싱</div></div>
+      <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:${pnl>=0?'#50e3a4':'#e84393'}">${(pnl>=0?'+':'')+Math.round(pnl).toLocaleString()} USD</div>
+    </div>${rows}
+    <div class="trade-row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-weight:500">
+      <span style="color:var(--muted)">총 투자금</span><span></span><span style="font-family:'Space Mono',monospace">$${Math.round(t.cost).toLocaleString()}</span>
+    </div>`;
+    wrap.appendChild(card);
+  });
+}
+
+// ─── 벤치마크 ───
+let benchChart=null, spyWkChart=null;
+function renderBench(){
+  if(!D) return;
+  const val=portVal(), myPct=(val-START)/START*100;
+  const spyV=spyVal(), spyPct=spyV?(spyV-START)/START*100:0;
+  const ex=spyV?myPct-spyPct:null;
+
+  el('b-my').textContent=(myPct>=0?'+':'')+myPct.toFixed(2)+'%';
+  el('b-my').style.color=myPct>=0?'#50e3a4':'#e84393';
+  el('b-spy').textContent=spyV?(spyPct>=0?'+':'')+spyPct.toFixed(2)+'%':'투자 후 확인';
+  el('b-ex').textContent=ex!==null?(ex>=0?'+':'')+ex.toFixed(2)+'%p':'—';
+  el('b-ex').style.color=ex!==null&&ex>=0?'#50e3a4':'#e84393';
+
+  const hist=state.history.length>1?state.history:D.portfolio_history.slice(-26);
+  const spyH=state.history.length>1?state.history.map(h=>({value:h.spy>0?(h.spy/START-1)*100:null})):D.spy_history.slice(-26);
+  if(benchChart){benchChart.destroy();}
+  benchChart=mkLineChart('benchChart',
+    hist.map(h=>h.date.slice(5)),
+    [{label:'포트폴리오',data:hist.map(h=>+(h.value||0).toFixed(2)),color:'#d4a843',dash:[]},
+     {label:'SPY',data:spyH.map(h=>h.value!==null?+h.value.toFixed(2):null),color:'#50e3a4',dash:[4,3]}]
+  );
+
+  if(spyWkChart){spyWkChart.destroy();}
+  spyWkChart=new Chart(el('spyWeekly').getContext('2d'),{
+    type:'bar',
+    data:{labels:D.spy_weekly.map((_,i)=>'W'+(i+1)),
+      datasets:[{data:D.spy_weekly,backgroundColor:D.spy_weekly.map(v=>v>=0?'rgba(80,227,164,.7)':'rgba(232,67,147,.7)'),borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{display:false},y:{ticks:{color:'#5a5a70',font:{size:9},callback:v=>v+'%'},grid:{color:'rgba(255,255,255,.04)'}}}}
+  });
+}
+
+// ─── 유틸 ───
+function el(id){return document.getElementById(id);}
+function mkLineChart(canvasId,labels,datasets){
+  return new Chart(el(canvasId).getContext('2d'),{
+    type:'line',
+    data:{labels,datasets:datasets.map(d=>({
+      label:d.label,data:d.data,borderColor:d.color,borderWidth:2,
+      pointRadius:labels.length<20?3:1,tension:0.3,fill:false,borderDash:d.dash,
+    }))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${(c.parsed.y||0).toFixed(2)}%`}}},
+      scales:{x:{ticks:{color:'#5a5a70',font:{size:10}},grid:{color:'rgba(255,255,255,.04)'}},
+              y:{ticks:{color:'#5a5a70',font:{size:10},callback:v=>v+'%'},grid:{color:'rgba(255,255,255,.04)'}}}}
+  });
+}
+
+loadData();
+</script>
+</body>
+</html>
