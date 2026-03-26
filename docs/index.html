@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- saved from url=(0044)file:///C:/Users/user/Downloads/index_3.html -->
-<html lang="ko"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alloc — 자산배분 트래커</title>
-<link href="./index_files/css2" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #f5f5f7;
@@ -135,17 +135,17 @@ header { display: flex; justify-content: space-between; align-items: center; mar
   <header>
     <div class="logo">Alloc<span>.</span></div>
     <div class="header-meta">
-      <div><span class="live-dot"></span><span id="updatedDate">데이터 로드 실패</span></div>
+      <div><span class="live-dot"></span><span id="updatedDate">로딩 중...</span></div>
       <div>매주 금요일 자동 갱신</div>
     </div>
   </header>
 
   <div class="tabs">
-    <button class="tab on" onclick="go(&#39;overview&#39;,this)">포트폴리오</button>
-    <button class="tab" onclick="go(&#39;signal&#39;,this)">신호 현황</button>
-    <button class="tab" onclick="go(&#39;rebal&#39;,this)">리밸런싱</button>
-    <button class="tab" onclick="go(&#39;journal&#39;,this)">거래 내역</button>
-    <button class="tab" onclick="go(&#39;bench&#39;,this)">벤치마크</button>
+    <button class="tab on" onclick="go('overview',this)">포트폴리오</button>
+    <button class="tab" onclick="go('signal',this)">신호 현황</button>
+    <button class="tab" onclick="go('rebal',this)">리밸런싱</button>
+    <button class="tab" onclick="go('journal',this)">거래 내역</button>
+    <button class="tab" onclick="go('bench',this)">벤치마크</button>
   </div>
 
   <!-- OVERVIEW -->
@@ -302,7 +302,7 @@ header { display: flex; justify-content: space-between; align-items: center; mar
   </div>
 </div>
 
-<script src="./index_files/chart.umd.js.다운로드"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 const STORE = 'alloc_apple_v1';
 const START = 100000;
@@ -379,9 +379,9 @@ function renderOverview() {
     if(le) le.textContent = (w*100).toFixed(1) + '%';
   });
 
-  const hist = state.history.length > 1 ? state.history : D.portfolio_history.slice(-26);
-  const spyH = state.history.length > 1
-    ? state.history.map(h=>({value: h.spy>0?(h.spy/START-1)*100:null}))
+  const hist = state.history.length >= 1 ? state.history : D.portfolio_history.slice(-26);
+  const spyH = state.history.length >= 1
+    ? state.history.map(h=>({value: h.spy !== undefined ? h.spy : null}))
     : D.spy_history.slice(-26);
 
   if(perfChart) { perfChart.destroy(); }
@@ -487,9 +487,17 @@ function confirmRebal() {
   state.cash = amt - totalCost;
   if(!state.spy_shares) { state.spy_shares = Math.floor(amt/D.prices.SPY); }
   const curVal = portVal(), spyV = state.spy_shares*D.prices.SPY;
+  const myPct = (curVal/START-1)*100;
+  const spyPct = (spyV/START-1)*100;
   state.trades.push({ date:D.updated, weights:{...D.weights}, holdings:{...newH}, prices:{...D.prices}, cost:totalCost });
-  if(!state.history.length) state.history = [{date:D.updated,value:0,spy:0}];
-  else state.history.push({date:D.updated,value:(curVal/START-1)*100,spy:(spyV/START-1)*100});
+  if(!state.history.length) {
+    state.history = [{date:D.updated, value:myPct, spy:spyPct}];
+  } else {
+    const last = state.history[state.history.length-1];
+    if(last.date === D.updated) { last.value = myPct; last.spy = spyPct; }
+    else { state.history.push({date:D.updated, value:myPct, spy:spyPct}); }
+  }
+  
   localStorage.setItem(STORE, JSON.stringify(state));
   renderOverview(); renderJournal(); renderBench();
   alert('✅ 투자가 기록되었어요!');
@@ -546,7 +554,7 @@ function renderBench() {
   el('b-ex').className='kpi-val '+(ex!==null&&ex>=0?'c-green':'c-red');
 
   const hist=state.history.length>1?state.history:D.portfolio_history.slice(-26);
-  const spyH=state.history.length>1?state.history.map(h=>({value:h.spy>0?(h.spy/START-1)*100:null})):D.spy_history.slice(-26);
+  const spyH=state.history.length>=1?state.history.map(h=>({value:h.spy!==undefined?h.spy:null})):D.spy_history.slice(-26);
   if(benchChart){benchChart.destroy();}
   benchChart=mkLine('benchChart',hist.map(h=>h.date.slice(5)),[
     {label:'포트폴리오',data:hist.map(h=>+(h.value||0).toFixed(2)),color:'#0071e3',dash:[]},
@@ -586,6 +594,5 @@ function mkLine(id, labels, datasets) {
 function el(id) { return document.getElementById(id); }
 loadData();
 </script>
-
-
-</body></html>
+</body>
+</html>
