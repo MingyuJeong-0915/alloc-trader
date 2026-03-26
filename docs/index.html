@@ -192,6 +192,13 @@ header { display: flex; justify-content: space-between; align-items: center; mar
         <div class="leg"><div class="leg-dot" style="background:var(--text3)"></div>SHY <span id="leg-shy" style="font-weight:600;color:var(--text)">—</span></div>
       </div>
     </div>
+
+    <div class="panel">
+      <div class="panel-title">보유 종목 현황</div>
+      <div id="holdingsTable">
+        <div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">투자 기록 후 표시됩니다</div>
+      </div>
+    </div>
   </div>
 
   <!-- SIGNAL -->
@@ -392,6 +399,93 @@ function renderOverview() {
       {label:'SPY', data:spyH.map(h=>h.value!==null?+h.value.toFixed(2):null), color:'#aeaeb2', dash:[4,3]}
     ]
   );
+  renderHoldings();
+}
+
+function renderHoldings() {
+  const wrap = el('holdingsTable');
+  if(!D || !state.trades.length) {
+    wrap.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">투자 기록 후 표시됩니다</div>';
+    return;
+  }
+
+  // 첫 거래의 매수가를 평단가로 사용
+  const firstTrade = state.trades[0];
+  const totalVal = portVal();
+
+  const rows = ASSETS.map(a => {
+    const shares = state.holdings[a];
+    if(shares === 0) return null;
+
+    const avgPrice = firstTrade.prices[a];       // 평단가 (첫 매수가)
+    const curPrice = D.prices[a];                // 현재가
+    const value    = shares * curPrice;          // 현재 평가금액
+    const cost     = shares * avgPrice;          // 매수 원가
+    const pnl      = value - cost;               // 손익
+    const pnlPct   = (pnl / cost) * 100;        // 수익률
+    const portPct  = (value / totalVal) * 100;  // 포트폴리오 비중
+    const color    = COLORS[a];
+    const pnlColor = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const sign     = pnl >= 0 ? '+' : '';
+
+    return `
+    <div style="display:flex;align-items:center;padding:14px 0;border-bottom:1px solid rgba(0,0,0,0.06)">
+      <!-- 색상 인디케이터 + 티커 -->
+      <div style="display:flex;align-items:center;gap:10px;width:80px;flex-shrink:0">
+        <div style="width:10px;height:10px;border-radius:3px;background:${color}"></div>
+        <span style="font-size:15px;font-weight:700;color:${color}">${a}</span>
+      </div>
+      <!-- 주수 + 비중 -->
+      <div style="flex:1;padding:0 12px">
+        <div style="font-size:14px;font-weight:600;color:var(--text)">${shares}주</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">포트 ${portPct.toFixed(1)}%</div>
+      </div>
+      <!-- 평단가 / 현재가 -->
+      <div style="flex:1;padding:0 12px">
+        <div style="font-size:12px;color:var(--text2)">평단 <span style="font-weight:600;color:var(--text)">$${avgPrice.toFixed(2)}</span></div>
+        <div style="font-size:12px;color:var(--text2);margin-top:3px">현재 <span style="font-weight:600;color:var(--text)">$${curPrice.toFixed(2)}</span></div>
+      </div>
+      <!-- 평가금액 -->
+      <div style="flex:1;padding:0 12px;text-align:right">
+        <div style="font-size:14px;font-weight:600;color:var(--text)">$${Math.round(value).toLocaleString()}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">원가 $${Math.round(cost).toLocaleString()}</div>
+      </div>
+      <!-- 수익률 -->
+      <div style="width:90px;text-align:right;flex-shrink:0">
+        <div style="font-size:16px;font-weight:700;color:${pnlColor}">${sign}${pnlPct.toFixed(2)}%</div>
+        <div style="font-size:12px;color:${pnlColor};margin-top:2px">${sign}$${Math.abs(Math.round(pnl)).toLocaleString()}</div>
+      </div>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  // 현금 잔액
+  const cashRow = state.cash > 0 ? `
+    <div style="display:flex;align-items:center;padding:14px 0">
+      <div style="display:flex;align-items:center;gap:10px;width:80px;flex-shrink:0">
+        <div style="width:10px;height:10px;border-radius:3px;background:var(--text3)"></div>
+        <span style="font-size:15px;font-weight:700;color:var(--text2)">현금</span>
+      </div>
+      <div style="flex:1;padding:0 12px">
+        <div style="font-size:14px;font-weight:600;color:var(--text2)">잔액</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">포트 ${(state.cash/totalVal*100).toFixed(1)}%</div>
+      </div>
+      <div style="flex:1"></div>
+      <div style="flex:1;text-align:right">
+        <div style="font-size:14px;font-weight:600;color:var(--text2)">$${Math.round(state.cash).toLocaleString()}</div>
+      </div>
+      <div style="width:90px"></div>
+    </div>` : '';
+
+  wrap.innerHTML = `
+    <div style="display:flex;padding:0 0 8px;border-bottom:1px solid var(--border)">
+      <div style="width:80px;flex-shrink:0;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">종목</div>
+      <div style="flex:1;padding:0 12px;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">보유</div>
+      <div style="flex:1;padding:0 12px;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">단가</div>
+      <div style="flex:1;padding:0 12px;text-align:right;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">평가금액</div>
+      <div style="width:90px;text-align:right;flex-shrink:0;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">수익률</div>
+    </div>
+    ${rows}
+    ${cashRow}`;
 }
 
 let weightChart = null;
